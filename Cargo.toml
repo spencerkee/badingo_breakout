@@ -1,0 +1,7 @@
+[package]
+name = "my_bevy_game"
+version = "0.1.0"
+edition = "2021" # this needs to be 2021, or you need to set "resolver=2"
+
+[dependencies]
+bevy = "0.7" # make sure this is the latest version
