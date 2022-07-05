@@ -5,8 +5,6 @@ use bevy::{
     sprite::collide_aabb::{collide, Collision},
 };
 
-const BACKGROUND_COLOR: Color = Color::rgb(0.9, 0.9, 0.9);
-
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
@@ -16,17 +14,24 @@ fn main() {
         .run();
 }
 
-// A paddle component
-struct Paddle {
-    speed: f32,
-}
+// Transforms
+const PADDLE_SIZE: Vec3 = const_vec3!([120.0, 20.0, 0.0]);
 
-// Enum with 3 fields, contains types of collisions for the ball
-enum Collider {
-    Solid,
-    Scorable,
-    Paddle,
-}
+// Colors
+const BACKGROUND_COLOR: Color = Color::rgb(0.9, 0.9, 0.9);
+const PADDLE_COLOR: Color = Color::rgb(0.3, 0.3, 0.7);
+
+const GAP_BETWEEN_PADDLE_AND_FLOOR: f32 = 60.0;
+
+// y coordinates
+const BOTTOM_WALL: f32 = -300.;
+
+// A paddle component
+#[derive(Component)]
+struct Paddle;
+
+#[derive(Component)]
+struct Collider;
 
 // only run once, since it is only a startup_system
 fn setup(
@@ -41,5 +46,24 @@ fn setup(
     // Cameras
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
     commands.spawn_bundle(UiCameraBundle::default());
+
     // Next we spawn a sprite to represent our paddle. A sprite is usually a simple little graphical 2D object, like a tree or a player character (like 2D Mario for example).
+    let paddle_y = BOTTOM_WALL + GAP_BETWEEN_PADDLE_AND_FLOOR;
+
+    commands
+        .spawn()
+        .insert(Paddle)
+        .insert_bundle(SpriteBundle {
+            transform: Transform {
+                translation: Vec3::new(0.0, paddle_y, 0.0),
+                scale: PADDLE_SIZE,
+                ..default()
+            },
+            sprite: Sprite {
+                color: PADDLE_COLOR,
+                ..default()
+            },
+            ..default()
+        })
+        .insert(Collider);
 }
