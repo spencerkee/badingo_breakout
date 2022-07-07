@@ -30,7 +30,11 @@ const TOP_WALL: f32 = 300.;
 // Colors
 const BACKGROUND_COLOR: Color = Color::rgb(0.9, 0.9, 0.9);
 const PADDLE_COLOR: Color = Color::rgb(0.3, 0.3, 0.7);
-
+const BALL_COLOR: Color = Color::rgb(1.0, 0.5, 0.5);
+const BRICK_COLOR: Color = Color::rgb(0.5, 0.5, 1.0);
+const WALL_COLOR: Color = Color::rgb(0.8, 0.8, 0.8);
+const TEXT_COLOR: Color = Color::rgb(0.5, 0.5, 1.0);
+const SCORE_COLOR: Color = Color::rgb(1.0, 0.5, 0.5);
 
 fn main() {
     App::new()
@@ -41,6 +45,7 @@ fn main() {
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(TIME_STEP as f64))
+                // Unlike C/C++, there's no restriction on the order of function definitions. move_paddle() can be defined later.
                 .with_system(move_paddle)
         )
         .run();
@@ -52,6 +57,78 @@ struct Paddle;
 
 #[derive(Component)]
 struct Collider;
+
+// This bundle is a collection of the components that define a "wall" in our game
+#[derive(Bundle)]
+struct WallBundle {
+    // You can nest bundles inside of other bundles like this
+    // Allowing you to compose their functionality
+    #[bundle]
+    sprite_bundle: SpriteBundle,
+    collider: Collider,
+}
+
+/// Which side of the arena is this wall located on?
+enum WallLocation {
+    Left,
+    Right,
+    Bottom,
+    Top,
+}
+
+// impl Struct ... adds some methods to Struct.
+impl WallLocation {
+    fn position(&self) -> Vec2 {
+        match self {
+            WallLocation::Left => Vec2::new(LEFT_WALL, 0.),
+            WallLocation::Right => Vec2::new(RIGHT_WALL, 0.),
+            WallLocation::Bottom => Vec2::new(0., BOTTOM_WALL),
+            WallLocation::Top => Vec2::new(0., TOP_WALL),
+        }
+    }
+
+    fn size(&self) -> Vec2 {
+        let arena_height = TOP_WALL - BOTTOM_WALL;
+        let arena_width = RIGHT_WALL - LEFT_WALL;
+        // Make sure we haven't messed up our constants
+        assert!(arena_height > 0.0);
+        assert!(arena_width > 0.0);
+
+        match self {
+            WallLocation::Left => Vec2::new(WALL_THICKNESS, arena_height + WALL_THICKNESS),
+            WallLocation::Right => Vec2::new(WALL_THICKNESS, arena_height + WALL_THICKNESS),
+            WallLocation::Bottom => Vec2::new(arena_width + WALL_THICKNESS, WALL_THICKNESS),
+            WallLocation::Top => Vec2::new(arena_width + WALL_THICKNESS, WALL_THICKNESS),
+        }
+    }
+}
+
+impl WallBundle {
+    // This "builder method" allows us to reuse logic across our wall entities,
+    // making our code easier to read and less prone to bugs when we change the logic
+    fn new(location: WallLocation) -> WallBundle {
+        WallBundle {
+            sprite_bundle: SpriteBundle {
+                transform: Transform {
+                    // We need to convert our Vec2 into a Vec3, by giving it a z-coordinate
+                    // This is used to determine the order of our sprites
+                    translation: location.position().extend(0.0),
+                    // The z-scale of 2D objects must always be 1.0,
+                    // or their ordering will be affected in surprising ways.
+                    // See https://github.com/bevyengine/bevy/issues/4149
+                    scale: location.size().extend(1.0),
+                    ..default()
+                },
+                sprite: Sprite {
+                    color: WALL_COLOR,
+                    ..default()
+                },
+                ..default()
+            },
+            collider: Collider,
+        }
+    }
+}
 
 // only run once, since it is only a startup_system
 fn setup(
@@ -87,21 +164,28 @@ fn setup(
             ..default()
         })
         .insert(Collider);
+
+    // Walls
+    commands.spawn_bundle(WallBundle::new(WallLocation::Left));
+    commands.spawn_bundle(WallBundle::new(WallLocation::Right));
+    commands.spawn_bundle(WallBundle::new(WallLocation::Bottom));
+    commands.spawn_bundle(WallBundle::new(WallLocation::Top));
 }
 
+// I believe this function is called every frame. Updates the paddle position keeping it within the bounds if the left or right keys are pressed.
 fn move_paddle(
-    keyboard_input: Res<Input<KeyCode>>,
-    mut query: Query<&mut Transform, With<Paddle>>,
+    keyboard_input: Res<Input<KeyCode>>, // an instance of the default Input resource under the name keyboard_input.
+    mut query: Query<&mut Transform, With<Paddle>>, // an instance of a Query that references our Paddle and its Transform.
 ) {
     let mut paddle_transform = query.single_mut();
     let mut direction = 0.0;
 
     if keyboard_input.pressed(KeyCode::Left) {
         direction -= 1.0;
-    }
-
-    if keyboard_input.pressed(KeyCode::Right) {
+    } else if keyboard_input.pressed(KeyCode::Right) {
         direction += 1.0;
+    } else {
+        return
     }
 
     // Calculate the new horizontal paddle position based on player input
