@@ -84,59 +84,57 @@ struct Collider;
 #[derive(Component)]
 struct Controllable;
 
-// https://stackoverflow.com/questions/33485203/what-does-missing-lifetime-specifier-mean-when-storing-a-str-in-a-structure
-// https://www.educative.io/answers/what-are-generic-lifetime-parameters-in-a-rust-function good lifetimes explanation
-// struct SpawnHelper {
-//     parent: Commands,
-//     asset_server: Res<AssetServer>,
-// }
-// struct SpawnHelper {
-//     commands: Commands,
-//     asset_server: Res<AssetServer>,
-// }
-// struct SpawnHelper<'w, 'a, 's, 'd> {
-//     commands: &'a mut Commands<'w, 's>,
-//     asset_server: Res<'d, AssetServer>,
-// }
-// impl SpawnHelper<'_, '_, '_, '_> {
-//     fn add_button(&mut self, text_value:String) {
-//         // Buttons
-//         self.commands
-//             .spawn_bundle(ButtonBundle {
-//                 style: Style {
-//                     // flex_direction: FlexDirection::Row,
-//                     size: Size::new(Val::Px(100.0), Val::Px(40.0)),
-//                     // center button
-//                     margin: Rect::all(Val::Auto),
-//                     // horizontally center child text
-//                     justify_content: JustifyContent::Center,
-//                     // vertically center child text
-//                     align_items: AlignItems::FlexEnd,
-//                     ..default()
-//                 },
-//                 color: NORMAL_BUTTON.into(),
-//                 ..default()
-//             })
-//             .with_children(|parent| {
-//                 parent.spawn_bundle(TextBundle {
-//                     text: Text::with_section(
-//                         text_value,
-//                         TextStyle {
-//                             font: self.asset_server.load("fonts/FiraSans-Bold.ttf"),
-//                             font_size: 18.0,
-//                             color: Color::rgb(0.9, 0.9, 0.9),
-//                         },
-//                         Default::default(),
-//                     ),
-//                     ..default()
-//                 });
-//             });
-//     }
-// }
+fn root() -> NodeBundle {
+    NodeBundle {
+        style: Style {
+            justify_content: JustifyContent::Center,
+            size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+            // align_items: AlignItems::FlexEnd,
+            ..default()
+        },
+        ..default()
+    }
+}
 
-// asset_server: Res<AssetServer>, 
-fn custom_add_button(parent:&mut ChildBuilder, button_text:String, color_value: f32) {
-    parent.spawn_bundle(ButtonBundle {
+fn menu_background() -> NodeBundle {
+    NodeBundle {
+        style: Style {
+            // Aligns columns to top
+            align_self: bevy::ui::AlignSelf::FlexEnd,
+            align_items: bevy::ui::AlignItems::FlexEnd,
+            // // Defines how flexbox items are ordered within a flexbox
+            // flex_direction: bevy::ui::FlexDirection::Column,
+            // The lower the padding, the farther apart the buttons get? 
+            // margin: Rect::all(Val::Px(200.0)),
+            // The padding of the node
+            // padding: Rect::all(Val::Px(1.0)),
+            size: Size::new(Val::Percent(50.0), Val::Percent(50.0)),
+            // Spaces columns apart
+            justify_content: JustifyContent::SpaceBetween,
+            ..default()
+        },
+        color: Color::NONE.into(),
+        // color: UiColor(Color::rgb(0.5, 0.5, 0.5)),
+        ..default()
+    }
+}
+
+fn column() -> NodeBundle {
+    NodeBundle {
+        style: Style {
+            flex_direction: bevy::ui::FlexDirection::Column,
+            justify_content: JustifyContent::SpaceBetween,
+            // 0% by default
+            size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+            ..default()
+        },
+        color: Color::NONE.into(),
+        ..default()
+    }
+}
+
+fn button() -> ButtonBundle {
+    ButtonBundle {
         style: Style {
             // flex_direction: FlexDirection::Row,
             size: Size::new(Val::Px(100.0), Val::Px(40.0)),
@@ -149,38 +147,25 @@ fn custom_add_button(parent:&mut ChildBuilder, button_text:String, color_value: 
             // align_items: AlignItems::FlexEnd,
             ..default()
         },
-        // color: NORMAL_BUTTON.into(),
-        color: UiColor(Color::rgb(color_value, color_value, color_value)),
+        color: NORMAL_BUTTON.into(),
         ..default()
-    });
-    // .with_children(|parent| {
-    //     parent.spawn_bundle(TextBundle {
-    //         text: Text::with_section(
-    //             button_text,
-    //             TextStyle {
-    //                 font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-    //                 font_size: 18.0,
-    //                 color: Color::rgb(0.9, 0.9, 0.9),
-    //             },
-    //             Default::default(),
-    //         ),
-    //         ..default()
-    //     });
-    // });
+    }
 }
 
-// fn root(materials: &Res<MenuMaterials>) -> NodeBundle {
-//     NodeBundle {
-//         style: Style {
-//             size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
-//             justify_content: JustifyContent::Center,
-//             align_items: AlignItems::Center,
-//             ..Default::default()
-//         },
-//         material: materials.root.clone(),
-//         ..Default::default()
-//     }
-// }
+fn button_text(asset_server: &Res<AssetServer>, text_value:String) -> TextBundle {
+    TextBundle {
+        text: Text::with_section(
+            text_value,
+            TextStyle {
+                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                font_size: 20.0,
+                color: Color::rgb(0.9, 0.9, 0.9),
+            },
+            Default::default(),
+        ),
+        ..default()
+    }
+}
 
 // only run once, since it is only a startup_system
 fn setup(
@@ -204,89 +189,23 @@ fn setup(
 
     commands
         // root node
-        .spawn_bundle(NodeBundle {
-            style: Style {
-                justify_content: JustifyContent::Center,
-                size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
-                // align_items: AlignItems::FlexEnd,
-                ..default()
-            },
-            ..default()
-        })
+        .spawn_bundle(root())
         .with_children(|parent| {
-            parent.spawn_bundle(NodeBundle {
-                style: Style {
-                    // Aligns columns to top
-                    align_self: bevy::ui::AlignSelf::FlexEnd,
-                    align_items: bevy::ui::AlignItems::FlexEnd,
-                    // // Defines how flexbox items are ordered within a flexbox
-                    // flex_direction: bevy::ui::FlexDirection::Column,
-                    // The lower the padding, the farther apart the buttons get? 
-                    // margin: Rect::all(Val::Px(200.0)),
-                    // The padding of the node
-                    // padding: Rect::all(Val::Px(1.0)),
-                    size: Size::new(Val::Percent(50.0), Val::Percent(50.0)),
-                    // Spaces columns apart
-                    justify_content: JustifyContent::SpaceBetween,
-                    ..default()
-                },
-                // color: Color::NONE.into(),
-                color: UiColor(Color::rgb(0.5, 0.5, 0.5)),
-                ..default()
-            })
+            parent.spawn_bundle(menu_background())
             .with_children(|parent| {
-                for x in 0..5 {
-                    parent.spawn_bundle(
-                        NodeBundle {
-                            style: Style {
-                                flex_direction: bevy::ui::FlexDirection::Column,
-                                justify_content: JustifyContent::SpaceBetween,
-                                // 0% by default
-                                size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
-                                ..default()
-                            },
-                            color: Color::NONE.into(),
-                            ..default()
-                        }
-                    ).with_children(|parent| {
-                        let mut y: i32 = 4;
+                for _ in 0..5 {
+                    parent.spawn_bundle(column())
+                    .with_children(|parent| {
                         for component in COMPONENTS {
-                            custom_add_button(parent, component.to_string(), (y as f32)/15.);
-                            y += 1;
+                            parent.spawn_bundle(button())
+                            .with_children(|parent| {
+                                parent.spawn_bundle(button_text(&asset_server, component.to_string()));
+                            });
                         }
                     });
                 }
             });
         });
-
-
-
-    
-    // for component in COMPONENTS {
-    //     spawn_helper.add_button(component.to_string());
-    // }    for component in COMPONENTS {
-    //     spawn_helper.add_button(component.to_string());
-    // }    for component in COMPONENTS {
-    //     spawn_helper.add_button(component.to_string());
-    // }    for component in COMPONENTS {
-    //     spawn_helper.add_button(component.to_string());
-    // }    for component in COMPONENTS {
-    //     spawn_helper.add_button(component.to_string());
-    // }    for component in COMPONENTS {
-    //     spawn_helper.add_button(component.to_string());
-    // }    for component in COMPONENTS {
-    //     spawn_helper.add_button(component.to_string());
-    // }    for component in COMPONENTS {
-    //     spawn_helper.add_button(component.to_string());
-    // }    for component in COMPONENTS {
-    //     spawn_helper.add_button(component.to_string());
-    // }    for component in COMPONENTS {
-    //     spawn_helper.add_button(component.to_string());
-    // }    for component in COMPONENTS {
-    //     spawn_helper.add_button(component.to_string());
-    // }    for component in COMPONENTS {
-    //     spawn_helper.add_button(component.to_string());
-    // }
 
     // Next we spawn a sprite to represent our paddle. A sprite is usually a simple little graphical 2D object, like a tree or a player character (like 2D Mario for example).
     // The spawn() creates the empty entity and we're adding components. Probably still should use a bundle. Here we're inserting a Paddle component, a SpriteBundle, t
