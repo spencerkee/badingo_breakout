@@ -6,6 +6,7 @@ use bevy::{
     sprite::collide_aabb::{collide, Collision},
     winit::WinitSettings,
 };
+// use arrayvec::ArrayVec;
 // Defines the amount of time that should elapse between each physics step.
 const TIME_STEP: f32 = 1.0 / 60.0;
 
@@ -52,6 +53,39 @@ const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
 
 // Meta
 const COMPONENTS: &'static [&'static str] = &["Sprite", "Transform", "Collider", "Velocity", "Controllable", "Destructor", "Destructable"];
+// const ENTITY_TYPES: &'static [&'static str] = &["Ball", "Paddle", "Wall", "Brick", "Score"];
+// const ENTITY_TYPES: &'static [Component; 5] = &[Ball, Paddle, Wall, Brick, Score];
+// const xs: [dyn any; 5]= [Ball, Paddle, Wall, Brick, Score];
+
+// let mut p = MaybeUninit::<[Component; 5]>::uninit();
+
+// Meta Components
+#[derive(Component)]
+struct Ball;
+#[derive(Component)]
+struct Paddle;
+#[derive(Component)]
+struct Wall;
+#[derive(Component)]
+struct Brick;
+#[derive(Component)]
+struct Score;
+
+#[derive(Clone, Copy)]
+enum EntityType {
+    Ball,
+    Paddle,
+    Wall,
+    Brick,
+    Score
+}
+const ENTITY_TYPES: [EntityType; 5] = [
+    EntityType::Ball,
+    EntityType::Paddle,
+    EntityType::Wall,
+    EntityType::Brick,
+    EntityType::Score
+];
 
 // pub struct HelloPlugin;
 // impl Plugin for HelloPlugin {
@@ -73,7 +107,7 @@ fn main() {
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(TIME_STEP as f64))
                 .with_system(move_controllable)
-                // .with_system(button_system)
+                .with_system(button_system)
         )
         .run();
 }
@@ -84,12 +118,22 @@ struct Collider;
 #[derive(Component)]
 struct Controllable;
 
+#[derive(Component)]
+struct Destructor;
+
+#[derive(Component)]
+struct Destructable;
+
+#[derive(Component, Deref, DerefMut)]
+struct Velocity(Vec2);
+
 fn root() -> NodeBundle {
     NodeBundle {
         style: Style {
             justify_content: JustifyContent::Center,
             size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
-            // align_items: AlignItems::FlexEnd,
+            // // This doesn't seem to do anything
+            // align_items: AlignItems::Center,
             ..default()
         },
         ..default()
@@ -133,22 +177,37 @@ fn column() -> NodeBundle {
     }
 }
 
-fn button() -> ButtonBundle {
-    ButtonBundle {
-        style: Style {
-            // flex_direction: FlexDirection::Row,
-            size: Size::new(Val::Px(100.0), Val::Px(40.0)),
-            // center button
-            // margin: Rect::all(Val::Auto),
-            margin: Rect {left: Val::Auto, right: Val::Auto, bottom: Val::Px(0.0), top: Val::Px(0.0)},
-            // // horizontally center child text
-            // justify_content: JustifyContent::Center,
-            // // vertically center child text
-            // align_items: AlignItems::FlexEnd,
-            ..default()
+#[derive(Component)]
+struct MetaEntityType { entity_type: EntityType }
+
+#[derive(Bundle)]
+struct CustomButtonBundle {
+    #[bundle]
+    button_bundle: ButtonBundle,
+    meta_entity_type: MetaEntityType,
+}
+
+fn button(meta_entity_type: EntityType) -> CustomButtonBundle {
+    CustomButtonBundle {
+        meta_entity_type: MetaEntityType {
+            entity_type: meta_entity_type
         },
-        color: NORMAL_BUTTON.into(),
-        ..default()
+        button_bundle: ButtonBundle {
+            style: Style {
+                // flex_direction: FlexDirection::Row,
+                size: Size::new(Val::Px(100.0), Val::Px(40.0)),
+                // center button
+                // margin: Rect::all(Val::Auto),
+                margin: Rect {left: Val::Auto, right: Val::Auto, bottom: Val::Px(0.0), top: Val::Px(0.0)},
+                // // horizontally center child text
+                // justify_content: JustifyContent::Center,
+                // // vertically center child text
+                // align_items: AlignItems::FlexEnd,
+                ..default()
+            },
+            color: NORMAL_BUTTON.into(),
+            ..default()
+        }
     }
 }
 
@@ -180,24 +239,17 @@ fn setup(
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
     commands.spawn_bundle(UiCameraBundle::default());
 
-    // If I have commands: commands, I get mismatched types expected `&mut bevy::prelude::Commands<'_, '_>`, found struct `bevy::prelude::Commands`rustcE0308 main.rs(556, 19): consider mutably borrowing here: `&mut commands`
-    
-    // struct SpawnHelper {
-    //     commands: Commands,
-    //     asset_server: Res<AssetServer>,
-    // }
-
+    // UI
     commands
-        // root node
         .spawn_bundle(root())
         .with_children(|parent| {
             parent.spawn_bundle(menu_background())
             .with_children(|parent| {
-                for _ in 0..5 {
+                for entity_type in ENTITY_TYPES {
                     parent.spawn_bundle(column())
                     .with_children(|parent| {
                         for component in COMPONENTS {
-                            parent.spawn_bundle(button())
+                            parent.spawn_bundle(button(entity_type))
                             .with_children(|parent| {
                                 parent.spawn_bundle(button_text(&asset_server, component.to_string()));
                             });
@@ -231,28 +283,62 @@ fn setup(
 fn button_system(
     mut interaction_query: Query<
         (&Interaction, &mut UiColor, &Children),
-        (Changed<Interaction>, With<Button>),
+        (Changed<Interaction>, With<Button>), // This triggers every frame even though it has a Changed filter?
     >,
     mut text_query: Query<&mut Text>,
 ) {
+    // println!("{subject}",
+    //          subject="here");
     for (interaction, mut color, children) in interaction_query.iter_mut() {
+        // text_query is querying for Text. But in this case it's being passed children[0].
         let mut text = text_query.get_mut(children[0]).unwrap();
         match *interaction {
             Interaction::Clicked => {
-                text.sections[0].value = "Press".to_string();
-                *color = PRESSED_BUTTON.into();
+                // let immutable_color =  &*color;
+                if (color.0 == NORMAL_BUTTON.into()) {
+                    *color = PRESSED_BUTTON.into();
+                } else {
+                    *color = NORMAL_BUTTON.into();
+                }
+                
             }
             Interaction::Hovered => {
-                text.sections[0].value = "Hover".to_string();
-                *color = HOVERED_BUTTON.into();
+                // text.sections[0].value = "Hover".to_string();
+                // *color = HOVERED_BUTTON.into();
             }
             Interaction::None => {
-                text.sections[0].value = "Button".to_string();
-                *color = NORMAL_BUTTON.into();
+                // text.sections[0].value = "Button".to_string();
+                // *color = NORMAL_BUTTON.into();
             }
         }
     }
 }
+
+// fn button_system(
+//     mut interaction_query: Query<
+//         (&Interaction, &mut UiColor, &Children),
+//         (Changed<Interaction>, With<Button>),
+//     >,
+//     mut text_query: Query<&mut Text>,
+// ) {
+//     for (interaction, mut color, children) in interaction_query.iter_mut() {
+//         let mut text = text_query.get_mut(children[0]).unwrap();
+//         match *interaction {
+//             Interaction::Clicked => {
+//                 text.sections[0].value = "Press".to_string();
+//                 *color = PRESSED_BUTTON.into();
+//             }
+//             Interaction::Hovered => {
+//                 text.sections[0].value = "Hover".to_string();
+//                 *color = HOVERED_BUTTON.into();
+//             }
+//             Interaction::None => {
+//                 text.sections[0].value = "Button".to_string();
+//                 *color = NORMAL_BUTTON.into();
+//             }
+//         }
+//     }
+// }
 
 // I believe this function is called every frame. Updates the paddle position keeping it within the bounds if the left or right keys are pressed.
 fn move_controllable(
@@ -336,11 +422,48 @@ i have to have meta components anyway, this isn't space efficient but i can star
 
 state {
     123: {
-        Velocity: Velocity(Vec2)
+        "Velocity": Velocity(Vec2)
     }
 }
 
+state {
+    "Ball": {
+        123: {
+            "Velocity": Velocity(Vec2)
+        }
+        456: {
+            "Velocity": Velocity(Vec2)
+        }
+    }
+}
+
+So when I press a button, it'll have "Velocity" but I need to get the entity IDs. This is a config that can be passed into a system, but only by main? 
+
+// I want the button to store if it's turned on or not? in the color. start by initializing the map with all 
+
+What're the pros and cons of having enable/disable on all components. 
+Pro:
+    Very simple
+    No premature optimization
+Cons:
+    Worse best case memory usage, same worst case memory usage
+    Querying logic is kind of meaningless or annoying.
+Can querying logic check for values on a component? that would make everything easy. Doesn't seem like it.
+
+Ok so then if I'm adding and removing components what's the strategy? I can use an event to pass between. So the 
+
+What's a good way to add/remove or enable/disable components while preserving the data of the removed component? For example removing a Velocity(const_vec2) component to freeze a sprite in place, then adding back the same component to have it continue moving in the same direction? I plan on doing this for more than a few components.
+
+The options I can think of are:
+1) Use an enabled/disabled bool on the component. Pros: Simple. Cons: Query logic is annoying because we would e.g. get all Velocity components and have to skip over the disabled ones.
+2) Remove and store the component in some other data structure. Pros: Better memory usage in cases where entities  if Cons: Complicated.
+
+Each button has the text I need, but I need to remember the entities. I can add the meta entity types. Meta entity type needs to just be the component.
+
+
 List of gotchas
 * https://stackoverflow.com/questions/70919554/is-the-default-font-in-bevy-unusable 2022-07-12T05:12:28.964203Z  WARN bevy_asset::asset_server: encountered an error while reading an asset: path not found: C:\Users\spenc\Documents\rust_stuff\badingo\assets\fonts/FiraSans-Bold.ttf https://github.com/mozilla/Fira/blob/master/ttf/FiraSans-Bold.ttf
+
+
 
 */
